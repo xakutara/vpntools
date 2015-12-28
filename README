@@ -1,0 +1,56 @@
+vpnstatus.sh
+------------
+
+#############################################################
+#
+#           script: vpnstatus.sh
+#       written by: Marek Novotny
+#          version: 2.8
+#             date: Mon Dec 28 05:41:00 PST 2015
+#          purpose: test status of live vpn connection
+#                 : kill torrent if vpn disconnects
+#          licence: GPL v2 (only)
+#
+#############################################################	
+
+synopsis
+
+	The purpose of vpnstatus is to run this script while connected to
+	a free VPN service and if this service disconnects you it will 
+	immediately terminate a group of applications in order to
+	protect you from a group of apps left running from your true IP
+	address and not the VPN address. 
+
+Example
+	
+	You connect to a VPN end-point in Moscow and begin a bittorrent
+	but half way through the download of the torrent you become
+	disconnected from the VPN endpoint in Moscow. The torrent
+	download now continues to operate from your true ISPs IP address.
+
+Solution
+	
+	If you'd rather that the torrent and other applications such as a
+	browser left working on a particular website be terminated in the
+	event that the VPN is disconnected then run vpnstatus.sh running
+	in a terminal session as it will allow you to set a group of
+	applications that will be terminated in the event the VPN status
+	changes from connected to disconnected. 
+
+code snippets:
+
+# apps that should be terminated if VPN fails
+processList=("transmission" "firefox" "pan" "slrn")
+
+This section of code sets the apps to be terminated in the event that the
+VPN is disconnected. My own suggestions are the following apps, but this
+can be changed by you by changing the names of the apps shown between the
+quotes, such as "transmission" -- a popular torrent client on Linux. 
+
+# apps that should not be running under vpn
+restrictedApps=("thunderbird")  
+
+This section of code sets up a restriction on applications that should not
+be running wne connected to the VPN service. My own suggestion is 
+thunderbird, the email client. You can add more app names, each inside a
+double-quotes such as ("thunderbird" "slrn" "other app name")
