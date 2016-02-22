@@ -3,7 +3,7 @@
 #########################################################
 #
 #                 script: vpnit
-#               version: .01
+#               version: .02
 #                  date: 2016-02-21
 #            written by: marek novotny
 #                   git: https://github.com/marek-novotny/vpntools
@@ -88,19 +88,26 @@ fi
 
 getConnected () {
 	
+	let count=6
 	echo "$(basename $0) message: obtaining device id... "
 	devID=$(ip route get 8.8.8.8 | awk '{print $5}')
 	echo "$(basename $0) message: device id set: ${devID}..."
 	vpnID=$devID
-	echo "$(basename $0) message: obtaining vpn connection..."
+	printf "%s" "$(basename $0) message: obtaining vpn connection..."
 	$priv openvpn --config $ovpnFile &> /dev/null &
-	ovpnScriptPid=$!
-	trap "kill -2 $ovpnScriptPid" 2
 	while [[ $vpnID == $devID ]] ; do
 		sleep 5
+		((count--))
+		printf "%s" "${count}."
 		vpnID=$(ip route get 8.8.8.8 | awk '{print $5}')
+		if [ $count -le 1 ] ; then
+			sudo pkill openvpn
+			printf "\n%s\n" "$(basename $0) error: $(basename $ovpnFile) hung..."
+			echo "$(basename $0) message: exiting..."
+			exit 1
+		fi
 	done
-	echo "$(basename $0) message: obtained vpn: ${vpnID}..."
+	printf "\n%s\n" "$(basename $0) message: obtained vpn: ${vpnID}..."
 	return 0
 }
 
@@ -150,7 +157,7 @@ Download Speed: $downResult
 
 EOF
 
-sudo pkill openvpn
+$priv pkill openvpn
 
 renameSource () {
 
