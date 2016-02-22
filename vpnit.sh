@@ -101,7 +101,7 @@ getConnected () {
 		printf "%s" "${count}."
 		vpnID=$(ip route get 8.8.8.8 | awk '{print $5}')
 		if [ $count -le 1 ] ; then
-			sudo pkill openvpn
+			$priv pkill openvpn
 			printf "\n%s\n" "$(basename $0) error: $(basename $ovpnFile) hung..."
 			echo "$(basename $0) message: exiting..."
 			exit 1
