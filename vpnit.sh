@@ -3,8 +3,8 @@
 #########################################################
 #
 #                 script: vpnit
-#               version: .02
-#                  date: 2016-02-21
+#               version: .03
+#                  date: 2016-02-23
 #            written by: marek novotny
 #                   git: https://github.com/marek-novotny/vpntools
 #               license: GPL v2 (only)
@@ -30,6 +30,7 @@ privCheck () {
 	
 	if [ $(id -u) -ne 0 ] ; then
 		priv=sudo
+		$priv -v
 	else
 		priv=""
 	fi
@@ -147,13 +148,13 @@ fi
 cat << EOF
 
 Filename Prefix: $(basename ${ovpnFile/_*/})
-Country: $country
-State: $state_abv
-City: $city
-IP: $ip_address
-PING: $pingResult
-Upload Speed: $upResult
-Download Speed: $downResult
+        Country: $country
+          State: $state_abv
+           City: $city
+             IP: $ip_address
+           PING: $pingResult
+   Upload Speed: $upResult
+ Download Speed: $downResult
 
 EOF
 
