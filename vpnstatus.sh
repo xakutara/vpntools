@@ -156,6 +156,31 @@ vpnStatus () {
 			
 }
 
+control_c () {
+
+	# kill OpenVPN and apps that may be running on top of OpenVPN
+	
+	echo
+	for x in "${vpnApps[@]}" ; do
+		pgrep "$x" &> /dev/null
+		if [ $? -ne 1 ] ; then
+			sendMessage 0 "$appName Status: Task $x is running..."
+			pkill -9 "$x" &> /dev/null
+			if [ $? -eq 0 ] ; then
+			sendMessage 0 "$appName Status: Task $x has been terminated."
+			fi
+		fi
+	done
+	
+	$priv kill $ovpnPID
+	sendMessage 0 "$appName Status: BREAK!"
+	sendMessage 0 "$appName Status: OpenVPN PID: $ovpnPID terminated..."
+	
+	sendMessage 0 "$appName Status: Device ID - $devID"
+	sendMessage 1 "$appName Status: $appName Terminated..."
+}
+
+trap control_c SIGINT
 getConnected
 vpnStatus
 
