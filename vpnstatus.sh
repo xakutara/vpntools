@@ -4,214 +4,159 @@
 #
 #           script: vpnstatus.sh
 #       written by: Marek Novotny
-#          version: 2.9
-#             date: Mon Dec 28 04:24PM 2015
+#          version: 3.0
+#             date: Sat Mar 05 07:27PM 2016
 #          purpose: test status of live vpn connection
 #                 : kill torrent if vpn disconnects
 #          licence: GPL v2 (only)
 #           github: https://github.com/marek-novotny/vpntools
+#            usage: vpnstatus {OpenVPNConfig.ovpn} 
+#            notes: this script launches vpn and tests its
+#                 : connection on-going. If the connection
+#                 : terminates then vpn apps are terminated
+#                 : as a safety...
+#                 : also prevents non-vpn from running under
+#                 : vpn. 
 #
 #############################################################
 
-condition=""
+clear
 
-# color codes ( best with a black background)
+# apps allowed to run under vpn. These terminate if vpn fails...
+vpnApps=(transmission)
 
-normal=$(tput sgr0)
-red=$(tput setaf 1)
-green=$(tput setaf 2)
-yellow=$(tput setaf 3)
-blue=$(tput setaf 4)
+# apps not allowed to run when vpn is up. 
+# If launched or running these will terminate when the vpn is up. 
+nonVpnApps=(thunderbird)
 
-sendMessage()
-{
-  echo "$1" 
-}
+appName="$(basename $0)"
 
-center() 
-{
-  for i in "${message[@]}"; do
-  	width=$(stty size | cut -d' ' -f2)
-  	length=${#i}
-  	printf "%$(($length+($width-$length)/2))s\n" "${i}"
-	done
-}
-
-# apps that should be terminated if VPN fails
-processList=("transmission" "firefox" "pan")
-
-# apps that should not be running under vpn
-restrictedApps=("thunderbird" "slrn")  
-
-# check of a process stored in the variable task is running or not
-
-checkProcess()
-{
-	unset procID
-	procID="$(ps -e | grep $task | grep -v panel | awk '{print $1}')"
-	if [ ! -z $procID ] ; then
-        return 0
+sendMessage () {
+	if [ $1 -ge 1 ] ; then
+		echo "$2" >&2 && exit $1
 	else
-        return 1
+		echo "$2"
 	fi
 }
 
-# terminate the given process stored in the variable task
-
-terminateProcess()
-{
-	kill -9 $procID
-
-}
-
-# routine to test for processes, report their status and kill them if running
-
-processTerminator()
-{
-	checkProcess
-	if (($? == 0)) ; then
-		sendMessage "$task is running..."
-		sendMessage "Terminating $task..."
-		terminateProcess
-		if (($? == 0)) ; then
-			sendMessage "$task terminated..."
+if [ $# -ne 1 -o "${1##*.}" != "ovpn" ] ; then
+	sendMessage 1 "$appName Usage Error: $appName {vpn_config_file.ovpn}"
+	else
+		configFile="$1"
+		if [ -r "$configFile" ] ; then
+			sendMessage 0 "$appName Status: $configFile accepted!"
 		else
-			sendMessage "$task is still running..."
+			sendMessage 1 "$appName Error: Config file $configFile cannot be read."
 		fi
+fi
+
+# can add more apps after openvpn to check for multiple dependencies...
+
+for x in openvpn ; do
+	which $x &> /dev/null
+	if [ $? -ne 0 ] ; then
+		sendMessage 1 "$appName Status: Dependency $x not found..."
 	fi
-}
+done
 
-# generate a random IP to test ip route against
+# check user credentials to create a vpn tunnel. 
 
-randomizer()
-{
-	IFS=$' '
-	ary=()
-	for x in {1..4} ; do
-		ary+=($(($RANDOM % 221 + 1)))
-	done
-	
-	if [[ ${ary[0]} -eq 10 || ${ary[0]} -eq 100 ]] ; then
-		randomizer
-	elif [[ ${ary[0]} -eq 169 ]] && [[ ${ary[1]} -eq 254 ]] ; then
-		randomizer
-	elif [[ ${ary[0]} -eq 172 ]] && [[ ${ary[1]} -eq 16 ]] ; then
-		randomizer
-	elif [[ ${ary[0]} -eq 192 ]] && [[ ${ary[1]} -eq 168 ]] ; then
-		randomizer
-	elif [[ ${ary[0]} -eq 198 ]] && [[ ${ary[1]} -eq 18 ]] ; then
-		randomizer
+if [ $(id -u) -ne 0 ] ; then
+	priv="sudo"
+	sendMessage 0 "$appName Status: sudo validation."
+	$priv -v
+	if [ $? -ne 0 ] ; then
+		sendMessage 1 "$appName Status: validation failed..."
+	fi
 	else
-		addr=$(echo "${ary[@]}" | awk '{print $1"."$2"."$3"."$4}')
-	fi
-}
+	priv=""
+fi
 
-# kill apps that should not be running if VPN is connected.
-# kills these apps once, if the script is running and the VPN
-# tunnel becomes active
-
-vpnOn()
-{
-	if [[ $condition != "on" ]] ; then
-	condition="on"
-	echo "VPN status: $green $condition $normal- ${devType[0]}: ${devType[1]}"
+getConnected () {
 	
-	for x in ${restrictedApps[@]} ; do
-		task=$x
-		processTerminator
-	done
-	fi
-}
-
-# drop apps that should not be running if vpn tunnel fails
-
-vpnOff()
-{
-	if [[ $condition != "off" ]] ; then
-	condition="off"
-	echo "VPN status: $red $condition $normal- ${devType[0]}: ${devType[1]}"
-	echo "Terminating apps..."
-
-	for x in ${processList[@]} ; do
-            task=$x
-            processTerminator
-	done
-	fi
-}
-
-checkStatus()
-{
-	while true ; do
-		devType=($(ip route get $addr | awk 'NR==1 {print $(NF-2),$(NF-0)}'))
-		if [[ ${devType[0]} == "$devVPN" ]] ; then
-			vpnOn
-		else
-			vpnOff
+	# report existing default device ID
+	sendMessage 0 "$appName Status: Obtaining Device ID "
+	devID=$(ip route get 8.8.8.8 | awk '{print $5}')
+	sendMessage 0 "$appName Status: Device ID Set: ${devID}."
+	
+	# set temp vpnID to match existing device ID
+	vpnID=$devID
+	sendMessage 0 "$appName Status: Obtaining VPN Connection "
+	$priv openvpn --config $configFile &> /dev/null &
+	ovpnPID=$!
+	sendMessage 0 "$appName Status: OpenVPN Process ID: ${ovpnPID}."
+	
+	# attempt to connect to VPN and change temp vpn ID to assigned tunnel ID
+	let count=0
+	while [[ $vpnID == $devID ]] ; do
+		printf "%s" "#"
+		sleep 1
+		((count++))
+		vpnID=$(ip route get 8.8.8.8 | awk '{print $5}')
+		if [ $count -ge 25 ] ; then
+			$priv kill $ovpnPID
+			echo
+			sendMessage 1 "$appName Error: $configFile hung."
 		fi
 	done
+	echo
+	sendMessage 0 "$appName Status: Obtained VPN: ${vpnID}."
 }
 
-detectVPN()
-{
-	devVPN=$(ip route get $addr | awk 'NR==1 {print $(NF-2)}')
+vpnStatus () {
+	
+	# set conditions for what happens when the vpn is up.
+	
+	while [[ "$vpnID" != "$devID" ]] ; do
+		vpnID=$(ip route get 8.8.8.8 | awk '{print $5}')
+		
+		# kill apps that should not be running when VPN is up. 
+		for x in "${nonVpnApps[@]}" ; do
+		pgrep "$x" &> /dev/null
+		if [ $? -ne 1 ] ; then
+			sendMessage 0 "$appName Status: Task $x is running..."
+			pkill -9 "$x"
+			if [ $? -eq 0 ] ; then
+			sendMessage 0 "$appName Status: Task $x has been terminated."
+			fi
+		fi
+		done
+	done
 
-	successful=("" "you've been assigned the device: $blue $devVPN $normal" ""
-	"the script will alert you and take action if"
-	"the vpn provided device: $devVPN drops at any time" "")
-
-	failure=("$red" "we didn't detect any difference and believe you will"
-	"need to try the detection phase again..." ""
-	"sorry for the inconvenience..." "$normal"
-	"$green" "press any key to begin the detection over again..." "$normal")
-
-	if [ "$devNorm" != "$devVPN" ] ; then
-		message=( "${successful[@]}" )
-		clear
-		center
-		checkStatus
+	sendMessage 0 "$appName Status: VPN Failed!"
+	
+	# Kill apps that should not be running when VPN is down.
+	for x in "${vpnApps[@]}" ; do
+		pgrep "$x" &> /dev/null
+		if [ $? -ne 1 ] ; then
+			sendMessage 0 "$appName Status: Task $x is running..."
+			pkill -9 "$x" &> /dev/null
+			if [ $? -eq 0 ] ; then
+			sendMessage 0 "$appName Status: Task $x has been terminated."
+			fi
+		fi
+	done
+	
+	# after failure, clean up session if remaining. 
+	
+	if [[ $(kill -0 $ovpnPID &> /dev/null) -eq 0 ]] ; then
+		sendMessage 0 "$appName Status: Terminating openVPN session."
+		$priv kill $ovpnPID
+		if [ $? -eq 0 ] ; then
+			sendMessage 0 "$appName Status: OpenVPN session terminated."
+			devID=$(ip route get 8.8.8.8 | awk '{print $5}')
+			sendMessage 0 "$appName Status: Default device = $devID"
+		fi
+		
 		else
-		message=( "${failure[@]}" )
-		clear
-		center
-		read -rs -n1 key
-		intro
+			sendMessage 0 "$appName Status: OpenVPN session has closed."
+			devID=$(ip route get 8.8.8.8 | awk '{print $5}')
+			sendMessage 0 "$appName Status: Default device = $devID"
 	fi
+			
 }
 
-detectNormal()
-{
-	devNorm=$(ip route get $addr | awk 'NR==1 {print $(NF-2)}')
+getConnected
+vpnStatus
 
-	message=("" "default device detected as:$blue $devNorm $normal" ""
-	"now we're going to determine the name of the tunnel"
-	"your vpn provider will use while connected to their vpn service" ""
-	"connect to your vpn provider now, and once connected..." "$green"
-	"press any key to continue" "$normal")
-	
-	clear
-	center
-	read -rs -n1 key
-	unset message
-	detectVPN
-}
-
-intro()
-{		
-	message=("" "welcome to vpnStatus" "----------------------------" ""
-	"this script needs to determine your default device name"
-	"and the vpn device name assigned by your provider" ""
-	"to do that we need to run two tests and compare the results" ""
-	"if you are not already disconnected from your vpn provider, disconnect now" "$green"
-	"press any key to continue" "$normal")
-	
-	clear
-	center
-	read -rs -n1 key
-	unset message
-	randomizer
-	detectNormal
-}
-
-intro
-
-#END
+## END ##
