@@ -4,8 +4,8 @@
 #
 #           script: vpnstatus.sh
 #       written by: Marek Novotny
-#          version: 3.0
-#             date: Sat Mar 05 07:27PM 2016
+#          version: 3.1
+#             date: Sun Mar 06 08:47PM 2016
 #          purpose: test status of live vpn connection
 #                 : kill torrent if vpn disconnects
 #          licence: GPL v2 (only)
@@ -23,7 +23,7 @@
 clear
 
 # apps allowed to run under vpn. These terminate if vpn fails...
-vpnApps=(transmission)
+vpnApps=(transmission chrome)
 
 # apps not allowed to run when vpn is up. 
 # If launched or running these will terminate when the vpn is up. 
@@ -124,14 +124,18 @@ vpnStatus () {
 	done
 
 	sendMessage 0 "$appName Status: VPN Failed!"
-	
+	devID=$(ip route get 8.8.8.8 | awk '{print $5}')
+	sendMessage 0 "$appName Status: Default device = $devID"
+			
 	# Kill apps that should not be running when VPN is down.
 	for x in "${vpnApps[@]}" ; do
 		pgrep "$x" &> /dev/null
 		if [ $? -ne 1 ] ; then
 			sendMessage 0 "$appName Status: Task $x is running..."
 			pkill -9 "$x" &> /dev/null
-			if [ $? -eq 0 ] ; then
+			sleep 2
+			pgrep $x &> /dev/null
+			if [ $? -ne 0 ] ; then
 			sendMessage 0 "$appName Status: Task $x has been terminated."
 			fi
 		fi
@@ -161,23 +165,42 @@ control_c () {
 	# kill OpenVPN and apps that may be running on top of OpenVPN
 	
 	echo
+	sendMessage 0 "$appName Status: BREAK!"
 	for x in "${vpnApps[@]}" ; do
 		pgrep "$x" &> /dev/null
-		if [ $? -ne 1 ] ; then
-			sendMessage 0 "$appName Status: Task $x is running..."
-			pkill -9 "$x" &> /dev/null
-			if [ $? -eq 0 ] ; then
-			sendMessage 0 "$appName Status: Task $x has been terminated."
+		if [ $? -eq 0 ] ; then
+			sendMessage 0 "$appName Status: $x is running..."
+			pkill $x -9 &> /dev/null
+			sleep 2
+			pgrep $x &> /dev/null
+			if [ $? -ne 0 ] ; then
+				sendMessage 0 "$appName Status: $x terminated..."
 			fi
 		fi
 	done
+		
+	# kill OpenVPN if running...
 	
-	$priv kill $ovpnPID
-	sendMessage 0 "$appName Status: BREAK!"
-	sendMessage 0 "$appName Status: OpenVPN PID: $ovpnPID terminated..."
-	
-	sendMessage 0 "$appName Status: Device ID - $devID"
-	sendMessage 1 "$appName Status: $appName Terminated..."
+	pgrep openvpn &> /dev/null
+	if [ $? -ne 0 ] ; then
+		sendMessage 0 "$appName Status: OpenVPN not running."
+		devID=$(ip route get 8.8.8.8 | awk '{print $5}')
+		sendMessage 0 "$appName Status: Device ID -${devID}-"
+		sendMessage 1 "$appName Status: $appName Terminated..."
+	elif [ $? -eq 0 ] ; then
+		sendMessage 0 "$appName Status: OpenVPN is running..."
+		devID=$(ip route get 8.8.8.8 | awk '{print $5}')
+		sendMessage 0 "$appName Status: Device ID -${devID}-"
+		$priv pkill -9 openvpn
+		sleep 2
+		pgrep openvpn &> /dev/null
+		if [ $? -ne 0 ] ; then
+			sendMessage 0 "$appName Status: OpenVPN terminated."
+			devID=$(ip route get 8.8.8.8 | awk '{print $5}')
+			sendMessage 0 "$appName Status: Device ID -${devID}-"
+			sendMessage 1 "$appName Status: $appName Terminated..."
+		fi
+	fi
 }
 
 trap control_c SIGINT
