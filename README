@@ -1,56 +1,59 @@
-vpnstatus.sh
-------------
+vpn tools
+---------
 
-#############################################################
-#
-#           script: vpnstatus.sh
-#       written by: Marek Novotny
-#          version: 2.8
-#             date: Mon Dec 28 05:41:00 PST 2015
-#          purpose: test status of live vpn connection
-#                 : kill torrent if vpn disconnects
-#          licence: GPL v2 (only)
-#
-#############################################################	
+There are a few tools here mostly written for users I run into in
+the newsgroups, alt.os.linux and alt.os.linux.ubuntu.
 
-synopsis
+The broad concept is that users download a lot of OpenVPN config files
+which end with the extension of .ovpn.
 
-	The purpose of vpnstatus is to run this script while connected to
-	a free VPN service and if this service disconnects you it will 
-	immediately terminate a group of applications in order to
-	protect you from a group of apps left running from your true IP
-	address and not the VPN address. 
+If you place all of these ovpn files in a single directory the issue becomes
+how to sort them, discarding the bad ones and keeping the good ones. And
+on top of that, how to sort them by connection details such as country or 
+connection speed. 
 
-Example
-	
-	You connect to a VPN end-point in Moscow and begin a bittorrent
-	but half way through the download of the torrent you become
-	disconnected from the VPN endpoint in Moscow. The torrent
-	download now continues to operate from your true ISPs IP address.
+The following tools are meant to assist with these issues. 
 
-Solution
-	
-	If you'd rather that the torrent and other applications such as a
-	browser left working on a particular website be terminated in the
-	event that the VPN is disconnected then run vpnstatus.sh running
-	in a terminal session as it will allow you to set a group of
-	applications that will be terminated in the event the VPN status
-	changes from connected to disconnected. 
+kickorkeep
+----------
 
-code snippets:
+This script should run from the terminal while in a directory full of
+.ovpn files. It will test each one and sort them into winners and losers. 
+A directory called, "kickorkeep" will be created in your $HOME directory. 
+Inside that are two directories, "winners" and "losers". 
 
-# apps that should be terminated if VPN fails
-processList=("transmission" "firefox" "pan" "slrn")
+ovpn files which test positive for a connection will end up in the winners. 
+Those that don't will end up in the losers directory. 
 
-This section of code sets the apps to be terminated in the event that the
-VPN is disconnected. My own suggestions are the following apps, but this
-can be changed by you by changing the names of the apps shown between the
-quotes, such as "transmission" -- a popular torrent client on Linux. 
+vpnit
+-----
 
-# apps that should not be running under vpn
-restrictedApps=("thunderbird")  
+vpnit is similar to kickorkeep in that it tests the files. However, it is
+best to use kickorkeep to sort good from bad. vpnit should be used on the
+winners as it will take longer to do its job. vpnit will speed test each
+connection and rename the host file into a filename which contains county, 
+ping and uploaded / download speed. 
 
-This section of code sets up a restriction on applications that should not
-be running wne connected to the VPN service. My own suggestion is 
-thunderbird, the email client. You can add more app names, each inside a
-double-quotes such as ("thunderbird" "slrn" "other app name")
+vpnstatus
+---------
+
+vpnstatus is an ovpn laucher. You use it to perform two functions. It launches 
+and ovpn connection and then continues to actively test the connection status. 
+The purpose of this is that you set two arrays within the script to monitor 
+the connection and if it fails the script auto-terminates certain apps of
+your choosing. 
+
+The default is set to terminate thunderbird if vpnstatus detects the vpn is up. 
+If the vpn connection is lost, the torrent downloading app called, transmission
+is terminated. You can add other apps to either array to set to your own tastes.
+
+vpntest
+-------
+
+If you are not sure what your current OpenVPN status is, you can test it with
+vpntest. It is a very quick script that simply details your current connection
+info. 
+
+If you have questions, visit me on alt.os.linux or alt.os.linux.ubuntu. 
+
+-Marek
